@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+	<meta charset="UTF-8">
+	<title>JWT Decoder</title>
+	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+	<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+	<style>
+		@media (max-height: 700px) {
+			html, body {
+				font-size: 12px;
+			}
+		}
+		
+		html, body {
+			height: 100%;
+			margin: 0;
+			/* bootstrap 5 default font-szie: 16px */
+			/* font-size: 16px; */
+		}
+		.title {
+			font-size: 1.25rem;
+			font-weight: bold;
+		}
+		.input-jwt {
+			overflow-y: auto;
+			border: 1px solid #ccc;
+			resize: none;
+			font-family: monospace;
+			/* font-size: 16px; */
+		}
+		.input-public-key {
+			overflow-y: auto;
+			border: 1px solid #ccc;
+			resize: none;
+			white-space: pre-wrap;
+			font-family: monospace;
+			/* font-size: 16px; */
+		}
+		.output-header {
+			overflow-y: auto;
+			border: 1px solid #ccc;
+			white-space: pre-wrap;
+			font-family: monospace;
+			/* font-size: 16px; */
+		}
+		.output-payload {
+			overflow-y: auto;
+			border: 1px solid #ccc;
+			white-space: pre-wrap;
+			font-family: monospace;
+			/* font-size: 16px; */
+		}
+		.output-disclosures {
+			overflow-y: auto;
+			border: 1px solid #ccc;
+			white-space: pre-wrap;
+			font-family: monospace;
+			/* font-size: 16px; */
+		}
+		.output-encodedList {
+			overflow-y: auto;
+			border: 1px solid #ccc;
+			white-space: pre-wrap;
+			font-family: monospace;
+			/* font-size: 16px; */
+		}
+		.input-encodedList-input {
+			overflow-y: auto;
+			border: 1px solid #ccc;
+			resize: none;
+			white-space: pre-wrap;
+			font-family: monospace;
+			/* font-size: 16px; */
+		}
+		.button-text {
+			/* font-size: 1rem; */
+			font-weight: bold;
+		}
+		.button-notify {
+			position: relative;
+		}
+		.badge-dot {
+			position: absolute;
+			top: 0;
+			right: 0;
+			transform: translate(50%, -50%);
+			width: 10px;
+			height: 10px;
+			background-color: red;
+			border-radius: 50%;
+			z-index: 1;
+			/* 加入紅點閃爍 */
+			/* animation: blink 1s infinite; */
+		}
+		@keyframes blink {
+			/* 紅點閃爍 */
+			0%, 100% {
+				opacity: 1;
+			}
+			50% {
+				opacity: 0;
+			}
+		}
+		.msg {
+			font-family: "Microsoft JhengHei", sans-serif, serif;
+			/* font-size: 1rem; */
+		}
+		.h-5 { height: 5vh; }
+		.h-20 { height: 20vh; }
+		.h-25 { height: 25vh; }
+		.h-45 { height: 45vh; }
+		.h-70 { height: 70vh; }
+		.vh-5 { height: 3vh; }
+		.vh-20 { height: 18vh; }
+		.vh-25 { height: 23vh; }
+		.vh-45 { height: 43vh; }
+		.vh-70 { height: 68vh; }
+		.link-style {
+			text-decoration: underline;
+			color: var(--bs-link-color, #0d6efd);
+			cursor: pointer;
+		}
+		.modal-customized {
+			max-width: 80vw;
+		}
+		.col-key {
+			width: 8%;
+		}
+		.col-value {
+			width: 62%;
+			max-width: 300px;
+			overflow-x: auto;
+			white-space: nowrap;
+		}
+		.col-remark {
+			width: 30%;
+			max-width: 300px;
+			overflow-x: auto;
+			white-space: nowrap;
+		}
+		.remark-result-warn		{ color: red; font-weight: bold; }
+		.remark-result-ok		{ color: green; font-weight: bold; }
+		.button-hidden {
+			display: none;
+		}
+		
+		
+		.editable-container {
+			position: relative;
+			display: inline-block;
+		}
+
+		.editable-placeholder {
+			position: absolute;
+			color: #aaa;
+			
+			/* 不要干擾點擊 */
+			pointer-events: none;
+		}
+		
+		/* JSON Format Highlight */
+		.json-key		{ color: brown; }
+		.json-string	{ color: green; }
+		.json-number	{ color: blue; }
+		.json-boolean	{ color: red; }
+		.json-null		{ color: gray; }
+		
+		/* JWT Highlight */
+		.jwt-header			{ color: red; }
+		.jwt-payload		{ color: green; }
+		.jwt-signature		{ color: blue; }
+		.sd-jwt-disclosure 	{ color: purple; }
+		
+		/* Other Highlight */
+		.line-number		{ color: darkgoldenrod; }
+		.target-byte		{ color: deepskyblue; font-weight: bold; }
+		.name-value			{ color: deepskyblue; font-weight: bold;}
+		.verify-success		{ color: blue; font-weight: bold;}
+		.verify-fail		{ color: red; font-weight: bold;}
+		.verify-unknown		{ color: purple; font-weight: bold;}
+		
+	</style>
+  
+	<!-- jQuery Script -->
+	<script type="module">
+		
+		import { jwtVerify, importJWK } from "https://cdn.jsdelivr.net/npm/jose@5.3.0/+esm"
+		
+		$(document).ready(function() {
+		
+			var tokens;
+			var statusListIndex;
+		
+			// 觀察視窗寬高
+			// let windowWidth = $(window).width();
+			// let windowHeight = $(window).height();
+			// console.log("瀏覽器可視區域 = (" + windowWidth + ", " + windowHeight + ")");
+		
+			// 隱藏按鈕
+			$('#btn_encodedList_input').hide();
+		
+			// 自動 focus 在輸入欄位
+			$('#div_jwt').focus();
+			
+			// 輸入 JWT
+			$('#div_jwt').on('input', function() {
+				
+				togglePlaceholder('div_jwt', 'placeholder_jwt');
+			
+				const input = $(this).text().trim();
+				
+				if (isJWT(input)) {
+					console.log("isJWT = true");
+					// 分隔符號為「點(.)」與「波浪號(~)」 
+					tokens = input.split(/[\s.~]+/);
+					console.log("tokens.length = " + tokens.length);
+					if (tokens.length >= 3) {
+						var coloredJWT = '<span class="jwt-header">' + tokens[0] + '</span>.' +
+										'<span class="jwt-payload">' + tokens[1] + '</span>.' +
+										'<span class="jwt-signature">' + tokens[2] + '</span>';
+						
+						// disclosures
+						if (tokens.length > 3) {
+							
+							// colored disclosures in input SD-JWT
+							const disclosures = '~' + tokens.slice(3, tokens.length).join("~");
+							coloredJWT = coloredJWT + '<span class="sd-jwt-disclosure">' + disclosures + '</span>';
+							
+							// decoded data from disclosures
+							var decodedDisclosures = '';
+							tokens.slice(3, tokens.length).forEach(db64 => {
+								var coloredDisclosure = highlightDisclosure(base64UrlDecode(db64));
+								decodedDisclosures = decodedDisclosures + coloredDisclosure + '<br/>';
+							});
+							$('#div_disclosures').html(decodedDisclosures);
+						}
+											
+						$('#div_jwt').html(coloredJWT);
+						
+						const header = JSON.parse(base64UrlDecode(tokens[0]));
+						const payload = JSON.parse(base64UrlDecode(tokens[1]));
+						// console.log(header);
+						// console.log(payload);
+						
+						const prettyHeader = highlightJSON(header);
+						const prettyPayload = highlightJSON(payload);
+						
+						$('#div_header').html(prettyHeader);
+						$('#div_payload').html(prettyPayload);
+						
+						
+						const credentialType = payload?.vc?.type?.[1];
+						// console.log("credentialType = " + credentialType);
+						
+						
+						// encoded list
+						const encodedList = payload?.vc?.credentialSubject?.encodedList ?? null;
+						if (credentialType == 'StatusList2021Credential' && encodedList) {
+							const hexDump = decodeEncodedList(encodedList);
+							$('#div_encodedList').html(hexDump);
+						}
+						
+						// payload detail
+						renderJsonTable(payload);
+						
+						// iss
+						const iss = payload?.iss ?? null;
+						const parseResult = parseDidKey(iss);
+						// console.log("parseResult.success = " + parseResult.success);
+						// console.log("parseResult.content = " + parseResult.content);
+						if (parseResult.success && parseResult.content) {
+							// 狀態清冊簽署金鑰不會以 DID 形式呈現，因此不適用。
+							if (credentialType != 'StatusList2021Credential') {
+								$('#div_public_key').html(parseResult.content).trigger('input');
+							}
+						}
+						
+						// statusListIndex
+						statusListIndex = payload?.vc?.credentialStatus?.statusListIndex ?? null;
+						if (statusListIndex) {
+							$('#btn_encodedList_input').show();
+						}
+					}
+					
+				} else {
+					// console.log("isJWT = false");
+					if (input != null && input != '') {
+						$('#div_msg_jwt').html('<span class="verify-fail">JWT 格式錯誤</span>');
+					} else {
+						$('#div_header').html('');
+						$('#div_payload').html('');
+						$('#div_disclosures').html('');
+						$('#div_encodedList').html('');
+						$('#div_msg_jwt').html('');
+					}
+				}
+			});
+			
+			
+			// 輸入公鑰
+			$('#div_public_key').on('input', function() {
+			
+				togglePlaceholder('div_public_key', 'placeholder_public_key');
+				
+				const input = $(this).text().trim();
+				
+				// public key
+				// var prettyPublicKey = '';
+				// const pureJwt = tokens.slice(0, 3).join(".");
+				// console.log("pureJwt = " + pureJwt);
+				
+				if (isValidJWK(input)) {
+					console.error("valid public key");
+					const jwk = JSON.parse(input);
+					const prettyPublicKey = highlightJSON(jwk);
+					$('#div_public_key').html(prettyPublicKey);
+					
+					// verify JWT
+					const pureJwt = tokens.slice(0, 3).join(".");
+					// console.log("pureJwt = " + pureJwt);
+					verifyJWT(pureJwt, jwk).then(result => {
+						if (result) {
+							$('#div_msg_public_key').html('<span class="verify-success">簽章驗證成功</span>');
+						} else {
+							$('#div_msg_public_key').html('<span class="verify-fail">簽章驗證失敗</span>');
+						}
+					})
+					.catch(err => {
+						console.error('verify error：', err);
+						var errorMessage = err.message;
+						errorMessage = errorMessage.replace(/"/g, '`');
+						$('#div_msg_public_key').html('<span id="link_tooltip_verify_signature" class="verify-fail link-style" title="' + errorMessage + '">簽章驗證失敗</span>');
+						// 註冊 tooltip 事件
+						registerTooltipEvent('#link_tooltip_verify_signature');
+					});
+					
+				} else {
+					if (input != null && input != '') {
+						// 公鑰 JWK 格式不符
+						console.error("invalid public key");
+						$('#div_msg_public_key').html('<span class="verify-fail">公鑰格式錯誤</span>');
+					} else {
+						// 忽略空值
+						$('#div_msg_public_key').html('');
+					}
+				}
+			});
+			
+			// 複製 JWT 輸入框內容至剪貼簿
+			$('#btn_copy_jwt').on('click', function() {
+				// 取得 div 的文字內容
+				var text = $('#div_jwt').text();
+
+				// 使用 Clipboard API 複製到剪貼簿
+				navigator.clipboard.writeText(text).then(function() {
+					// console.log('copy ok');
+					$('#div_msg_jwt').html('已複製');
+				}, function(err) {
+					alert('copy error：' + err);
+				});
+			});
+			
+			// 清空 JWT 輸入框內容
+			$('#btn_clear_jwt').on('click', function() {
+				$('#div_jwt').html('');
+				$('#div_public_key').html('');
+				$('#div_msg_jwt').html('');
+				$('#div_msg_public_key').html('');
+				$('#div_header').html('');
+				$('#div_payload').html('');
+				$('#div_disclosures').html('');
+				$('#div_encodedList').html('');
+				$('#div_msg_encodedList').html('');
+				$('#table_payload_detail').html('');
+				$('#btn_payload_detail').html('詳細資訊');
+				
+				togglePlaceholder('div_jwt', 'placeholder_jwt');
+				togglePlaceholder('div_public_key', 'placeholder_public_key');
+			});
+			
+			// 複製公鑰輸入框內容至剪貼簿
+			$('#btn_copy_public_key').on('click', function() {
+				// 取得 div 的文字內容
+				var text = $('#div_public_key').text();
+
+				// 使用 Clipboard API 複製到剪貼簿
+				navigator.clipboard.writeText(text).then(function() {
+					// console.log('copy ok');
+					$('#div_msg_public_key').html('已複製');
+				}, function(err) {
+					alert('copy error：' + err);
+				});
+			});
+			
+			// 清空公鑰輸入框內容
+			$('#btn_clear_public_key').on('click', function() {
+				$('#div_public_key').html('');
+				$('#div_msg_public_key').html('');
+				
+				togglePlaceholder('div_public_key', 'placeholder_public_key');
+			});
+			
+			// // 清除紅點
+			// $('#btn_payload_detail').on('click', function() {
+			// 	$('#btn_payload_detail').html('詳細資訊');
+			// });
+			
+			// 確認手動輸入 encodedList
+			$('#btn_confirm_encodedList_input').on('click', function() {
+				
+				// console.log("statusListIndex = " + statusListIndex);
+				
+				const encodedList = $('#div_encodedList_input').text().trim();
+				const result = verifyWithEncodedList(encodedList, statusListIndex);
+				
+				// 印出色彩標示的狀態清冊 (16進位)
+				const hexData = result?.hexData ?? null;
+				$('#div_encodedList').html(hexData);
+				
+				const calculated = result?.calculated ?? null;
+				if (calculated == 0) {
+					$('#div_msg_encodedList').html('<span class="verify-success">狀態驗證成功 (' + statusListIndex + ')</span>');
+				} else if (calculated == 1) {
+					$('#div_msg_encodedList').html('<span class="verify-fail">狀態驗證失敗 (' + statusListIndex + ')</span>');
+				} else if (calculated == -1) {
+					$('#div_msg_encodedList').html('<span class="verify-unknown">狀態或清冊格式有誤 (' + statusListIndex + ')</span>');
+				}
+				
+			});
+			
+			// 清空已輸入的 encodedList
+			$('#btn_clear_encodedList_input').on('click', function() {
+				$('#div_encodedList_input').html('');
+				$('#div_encodedList').html('');
+				$('#div_msg_encodedList').html('');
+			});
+			
+		});
+		
+		function isJWT(token) {
+			return /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+(?:~[A-Za-z0-9-_]+)*~?$/.test(token);
+		}
+		
+		function isValidJWK(jwkString) {
+			
+			let jwk;
+
+			// Step 1: 解析 JSON
+			try {
+				jwk = JSON.parse(jwkString);
+			} catch (e) {
+				return false;
+			}
+
+			// Step 2: 檢查是否為物件
+			if (typeof jwk !== 'object' || Array.isArray(jwk) || jwk === null) {
+				return false;
+			}
+
+			// Step 3: 檢查是否有 kty 欄位
+			if (!('kty' in jwk)) {
+				return false;
+			}
+
+			// Step 4: 根據 kty 檢查必要欄位
+			switch (jwk.kty) {
+				case 'RSA':
+					return 'n' in jwk && 'e' in jwk;
+				case 'EC':
+					return 'crv' in jwk && 'x' in jwk && 'y' in jwk;
+				case 'oct':
+					return 'k' in jwk;
+				default:
+					// 不支援的金鑰類型
+					return false;
+			}
+		}
+
+		
+		function highlightJSON(json) {
+		
+			if (typeof json != 'string') {
+				json = JSON.stringify(json, null, 2);
+			}
+			json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+			return json.replace(/("(\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*")(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g, function (match, p1, p2, p3) {
+				let cls = 'json-number';
+				if (p3) {
+					cls = 'json-key';
+				} else if (/^"/.test(match)) {
+					cls = 'json-string';
+				} else if (/true|false/.test(match)) {
+					cls = 'json-boolean';
+				} else if (/null/.test(match)) {
+					cls = 'json-null';
+				}
+				return '<span class="' + cls + '">' + match + '</span>';
+			});
+		}
+		
+		function highlightDisclosure(jsonStr) {
+		
+			// console.log("jsonStr = " + jsonStr);
+			
+			try {
+				// 檢查空值、null值、換行字元等
+				if (jsonStr == null || jsonStr.trim() === "") {
+					return jsonStr;
+				}
+			
+				// 將 JSON 字串轉為陣列
+				const arr = JSON.parse(jsonStr);
+
+				// 確認陣列長度是否足夠
+				if (arr.length < 3) {
+					return jsonStr;
+				}
+				
+				// 產生 highlight 後的格式字串（第 2 和第 3 個元素）
+				const highlighted = arr.map((item, index) => {
+					if (index === 1 || index === 2) {
+						return '<span class="name-value">' + `${item}`+ '</span>';
+					}
+					return item;
+				});
+
+				// 將結果轉為字串格式（保留原始 JSON 外觀）
+				return `[${highlighted.map(i => `"${i}"`).join(",")}]`;
+				
+			} catch (e) {
+				console.error("invalid JSON input:", e);
+				// 回傳原字串作為 fallback
+				return jsonStr; 
+			}
+		}
+		
+		function base64UrlDecode(str) {
+			// 還原標準 base64 字元
+			str = str.replace(/-/g, '+').replace(/_/g, '/');
+			// 補上 padding
+			const padding = str.length % 4;
+			if (padding === 2) {
+				str += '==';
+			} else if (padding === 3) {
+				str += '=';
+			} else if (padding !== 0) {
+				throw new Error('invalid base64 string length');
+			}
+			
+			// 解碼並處理 Unicode
+			const decoded = atob(str);
+			try {
+				return decodeURIComponent(escape(decoded));
+			} catch (e) {
+				// 如果不是 UTF-8 就回傳原值
+				return decoded;
+			}
+		}
+		
+		function decodeEncodedList(base64Str) {
+			try {
+				// Base64 to Uint8Array
+				const binary = atob(base64Str);
+				const len = binary.length;
+				const compressedData = new Uint8Array(len);
+				for (let i = 0; i < len; i++) {
+					compressedData[i] = binary.charCodeAt(i);
+				}
+				
+				// gzip uncompress
+				const originalData = pako.ungzip(compressedData);
+				// console.log("originalData.length = " + originalData.length);
+				
+				// print to hex data
+				var hexData = '';
+				const bytesPerLine = 16
+				if (originalData) {
+					for (let i = 0; i < originalData.length; i += bytesPerLine) {
+						const chunk = originalData.slice(i, i + bytesPerLine);
+						const hexPart = Array.from(chunk, b => b.toString(16).padStart(2, '0')).join(' ');
+						const lineNum = '<span class="line-number">' + i.toString(16).padStart(4, '0') + ': ' + '</span>';
+						hexData = hexData + lineNum + hexPart.padEnd(3 * bytesPerLine) + '<br/>';
+					}
+				}
+				
+				return hexData;
+				
+			} catch (err) {
+				console.error('decode or unzip error：', err);
+				return null;
+			}
+		}
+
+		function verifyWithEncodedList(base64Str, statusListIndex) {
+			
+			var hexData = '';
+			var calculated = -1;
+				
+			try {
+				if (base64Str == null || base64Str.trim() === "") {
+					console.error("invalid encoded list");
+					return null;
+				}
+				
+				if (statusListIndex < 0) {
+					console.error("statusListIndex < 0");
+					return {
+						hexData: '',
+						calculated: -1
+					};
+				}
+				
+				// Base64 to Uint8Array
+				const binary = atob(base64Str);
+				const len = binary.length;
+				const compressedData = new Uint8Array(len);
+				for (let i = 0; i < len; i++) {
+					compressedData[i] = binary.charCodeAt(i);
+				}
+				
+				// gzip uncompress
+				const originalData = pako.ungzip(compressedData);
+				// console.log("originalData.length = " + originalData.length);
+				
+				const bitIndex = statusListIndex % 8;
+				const byteIndex = (statusListIndex - bitIndex) / 8;
+				// console.log("(byteIndex, bitIndex) = (" + byteIndex + ", " + bitIndex + ")");
+				
+				// print to hex data
+				const bytesPerLine = 16
+				var targetByte = null;
+				if (originalData) {
+					for (let i = 0; i < originalData.length; i += bytesPerLine) {
+						
+						// 單行 byte index 上下限 [0, 15], [16, 31], ...
+						const startIndexBytePerLine = i;
+						const endIndexBytePerLine = i + bytesPerLine;
+						
+						const chunk = originalData.slice(i, i + bytesPerLine);
+						const hexPart = Array.from(chunk, (b, bi) => {
+											const byteData = b.toString(16).padStart(2, '0');
+											if (byteIndex >= startIndexBytePerLine && byteIndex < endIndexBytePerLine && bi == byteIndex % bytesPerLine) {
+												// console.log("(b, bi) = (" + b + ", " + bi + ")");
+												targetByte = b;
+												return '<span class="target-byte">' + byteData + '</span>';
+											} else {
+												return byteData;
+											}
+										}).join(' ');
+						const lineNum = '<span class="line-number">' + i.toString(16).padStart(4, '0') + ': </span>';
+						hexData = hexData + lineNum + hexPart.padEnd(3 * bytesPerLine) + '<br/>';
+					}
+				}
+				
+				// console.log("targetByte = " + targetByte);
+				
+				calculated = (targetByte >> (7 - bitIndex)) & 1;
+				// console.log("calculated = " + calculated);
+				
+				// 回傳狀態清冊與驗證結果
+				return {
+					hexData: hexData,
+					calculated: calculated
+				};
+				
+			} catch (err) {
+				console.error('decode or unzip error：', err);
+				return {
+					hexData: '',
+					calculated: -1
+				};
+			}
+		}
+
+		async function verifyJWT(jwt, jwk) {
+			
+			var alg = jwk?.alg;
+			var crv = jwk?.crv;
+			if (alg == null) {
+				if (crv) {
+					switch (crv) {
+						case "P-256":
+							alg = "ES256";
+							// 修正x, y值
+							jwk.x = fixBase64UrlLength(jwk.x, 32);
+							jwk.y = fixBase64UrlLength(jwk.y, 32);
+							break;
+						case "P-384":
+							alg = "ES384";
+							break;
+						case "P-521":
+							alg = "ES512";
+							break;
+						case "secp256k1":
+							alg = "ES256K";
+							break;
+						default:
+							throw new Error("Unsupported crv: " + crv);
+					}
+				} else {
+					return null;
+				}
+			}
+			
+			console.log("alg = " + alg);
+			
+			const key = await importJWK(jwk, alg);
+			const { payload, protectedHeader } = await jwtVerify(jwt, key);
+			// console.log("payload = " + payload);
+			// console.log("protectedHeader = " + protectedHeader);
+			
+			return { payload, protectedHeader };
+		}
+		
+		function fixBase64UrlLength(b64urlStr, expectedLength) {
+			
+			const bytes = Uint8Array.from(atob(b64urlStr.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+
+			// 如果是多了 1 個 byte 且第一個是 0x00，就裁掉
+			if (bytes.length === expectedLength + 1 && bytes[0] === 0x00) {
+				console.log("bytes[0] == 0x00");
+				const trimmed = bytes.slice(1);
+				return btoa(String.fromCharCode(...trimmed))
+					.replace(/\+/g, '-')
+					.replace(/\//g, '_')
+					.replace(/=+$/, '');
+			}
+
+			// 原本就沒問題就直接回傳
+			return b64urlStr;
+		}
+		
+		function registerTooltipEvent(id) {
+		
+			try {
+				const el = document.querySelector(id);
+				const tooltip = new bootstrap.Tooltip(el, { trigger: 'click' });
+				// 註冊點擊事件控制顯示
+				el.addEventListener('click', function (e) {
+					// 停止 tooltip 事件
+					e.stopPropagation();
+				});
+				
+				// 點畫面其他地方時關掉 tooltip
+				document.addEventListener('click', function () {
+					tooltip.hide();
+				});
+			} catch (err) {
+				console.error('register tooltip event error：', err);
+			}
+		}
+		
+		function renderJsonTable(jsonData) {
+			
+			const tbody = document.getElementById("table_payload_detail");
+			// 清空之前內容
+			tbody.innerHTML = "";
+			
+			var showBadge = false;
+			var credentialType = '';
+			var encodedList = '';
+			
+			Object.entries(jsonData).forEach(([key, value]) => {
+				const row = document.createElement("tr");
+
+				// 第 1 欄：欄位名稱 (key)
+				const keyCell = document.createElement("td");
+				keyCell.className = "col-key";
+				keyCell.textContent = key;
+				row.appendChild(keyCell);
+
+				// 第 2 欄：欄位值 (value)
+				const valueCell = document.createElement("td");
+				// 設定可以捲動
+				valueCell.className = "col-value";
+				if (key == "cnf" || key == "vc" || key == "vp") {
+					// cnf, vc
+					valueCell.textContent = JSON.stringify(value);
+				} else {
+					valueCell.textContent = value;
+				}
+				row.appendChild(valueCell);
+
+				// 第 3 欄：備註
+				const remarkCell = document.createElement("td");
+				remarkCell.className = "col-remark";
+				
+				const nowMillis = Date.now();
+				const timeStr = '[' + getTimeZone() + '] ' + formatEpochTime(value) + ' ';
+				if (key == "nbf") {
+					// 發行時間
+					if (nowMillis >= value * 1000) {
+						remarkCell.classList.add("text-primary");
+						remarkCell.textContent = timeStr + '→ 有效';
+					} else {
+						remarkCell.classList.add("text-danger");
+						remarkCell.textContent = timeStr + '→ 未來發行？';
+						showBadge = true;
+					}
+				} else if (key == "exp") {
+					// 到期時間
+					if (nowMillis <= value * 1000) {
+						remarkCell.classList.add("text-primary");
+						remarkCell.textContent = timeStr + '→ 有效';
+					} else {
+						remarkCell.classList.add("text-danger");
+						remarkCell.textContent = timeStr + '→ 已過期';
+						showBadge = true;
+					}
+				} else if (key == "vc") {
+					// status list index
+					const statusListIndex = value?.credentialStatus?.statusListIndex ?? null;
+					
+					// encoded list
+					credentialType = value?.type?.[1];
+					encodedList = value?.credentialSubject?.encodedList ?? null;
+					
+					if (statusListIndex) {
+						remarkCell.innerHTML = 'credential type → ' + credentialType + '<br>status list index → ' + statusListIndex;
+					} else if (credentialType == 'StatusList2021Credential' && encodedList) {
+						remarkCell.innerHTML = 'encoded list → <span id="link_tooltip_copy_encodedList" class="text-black link-style" title="已複製">' + abbreviate(encodedList) + '</span>';
+					}
+				} else if (key == "jti") {
+					
+					const segments = getLastTwoUrlSegmentsSafe(value);
+					const length = segments.length;
+					// console.log('segments = ' + segments);
+					// console.log('length = ' + length);
+					
+					if (credentialType == 'StatusList2021Credential') {
+						if (length == 1) {
+							remarkCell.innerHTML = '清冊群組 (group) → ' + segments[length - 1];
+						} else if (length == 2) {
+							remarkCell.innerHTML = '對應 vc type → ' + segments[length - 2] + '<br>清冊群組 (group) → ' + segments[length - 1];
+						}
+					} else {
+						if (length > 1) {
+							remarkCell.textContent = 'cid → ' + segments[length - 1];
+						}
+					}
+					
+				}
+				
+				row.appendChild(remarkCell);
+
+				tbody.appendChild(row);
+			});
+			
+			if (encodedList) {
+				registerCopyEvent('#link_tooltip_copy_encodedList', encodedList);
+			}
+			
+			// 資料出現異常時，詳細資訊按鈕上新增紅點提醒
+			if (showBadge) {
+				const detailBtn = document.getElementById("btn_payload_detail");
+				detailBtn.innerHTML = '詳細資訊<span class="badge-dot"></span>';
+				// if (detailBtn.classList.contains('btn-primary')) {
+				// 	detailBtn.classList.remove('btn-primary');
+				// 	detailBtn.classList.add('btn-danger');
+				// }
+			}
+		}
+		
+		function formatEpochTime(epochSeconds) {
+			
+			// 將秒轉為毫秒 (自動轉換時區，ex: GMT+8)
+			const date = new Date(epochSeconds * 1000);
+			
+			const yyyy = date.getFullYear();
+			// 月份從 0 開始
+			const MM = String(date.getMonth() + 1).padStart(2, '0');
+			const dd = String(date.getDate()).padStart(2, '0');
+
+			const HH = String(date.getHours()).padStart(2, '0');
+			const mm = String(date.getMinutes()).padStart(2, '0');
+			const ss = String(date.getSeconds()).padStart(2, '0');
+
+			// yyyy-MM-dd HH:mm:ss
+			return `${yyyy}-${MM}-${dd} ${HH}:${mm}:${ss}`;
+		}
+		
+		function getTimeZone() {
+			
+			const offsetMinutes = new Date().getTimezoneOffset();
+			const offsetHours = -offsetMinutes / 60;
+			const timeZone = "GMT" + (offsetHours >= 0 ? "+" : "") + offsetHours;
+			
+			return timeZone;
+		}
+		
+		const BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+		
+		// Base58 解碼
+		function base58Decode(str) {
+			
+			let bytes = [0];
+			for (let char of str) {
+				const value = BASE58_ALPHABET.indexOf(char);
+				if (value < 0) {
+					throw new Error(`Invalid Base58 character "${char}"`);
+				}
+
+				let carry = value;
+				for (let j = 0; j < bytes.length; ++j) {
+					carry += bytes[j] * 58;
+					bytes[j] = carry & 0xff;
+					carry >>= 8;
+				}
+
+				while (carry > 0) {
+					bytes.push(carry & 0xff);
+					carry >>= 8;
+				}
+			}
+
+			for (let char of str) {
+				if (char === '1') {
+					bytes.push(0);
+				}
+				else {
+					break;
+				}
+			}
+
+			return new Uint8Array(bytes.reverse());
+		}
+		
+		// parse DID key
+		function parseDidKey(did) {
+			
+			const regex = /^did:key:(z[a-zA-Z0-9]+)$/;
+			const match = did.match(regex);
+
+			if (!match) {
+				return {
+					success: false,
+					error: 'Invalid DID format. Expected format: did:key:zXXXXXXXX'
+				};
+			}
+
+			const keyPart = match[1]; // zXXXX
+			const base58Str = keyPart.slice(1); // 去掉 z
+
+			try {
+				const decoded = base58Decode(base58Str);
+
+				if (decoded.length < 4 || decoded[0] !== 0xD1 || decoded[1] !== 0xD6 || decoded[2] !== 0x03) {
+					return {
+						success: false,
+						error: 'Prefix check failed: expected first 3 bytes to be 0xD1, 0xD6, 0x03'
+					};
+				}
+
+				const utf8Bytes = decoded.slice(3); // 去掉前 3 個 bytes
+				const decodedStr = new TextDecoder('utf-8').decode(utf8Bytes);
+
+				return {
+					success: true,
+					content: decodedStr
+				};
+
+			} catch (err) {
+				return {
+					success: false,
+					error: `Decoding failed: ${err.message}`
+				};
+			}
+		}
+		
+		function abbreviate(str) {
+			
+			if (str) {
+			
+				// 若長度不超過 10 個字元，就不省略
+				if (str.length <= 16) {
+					return str;
+				}
+				
+				// 前後各取 8 個字元，並以 `...` 進行串接
+				const start = str.slice(0, 8);
+				const end = str.slice(-8);
+				return `${start}...${end}`;
+				
+			} else {
+				return '';
+			}
+		}
+		
+		function registerCopyEvent(id, msg) {
+		
+			try {
+				const el = document.querySelector(id);
+				const tooltip = new bootstrap.Tooltip(el, { trigger: 'click' });
+				// 註冊點擊事件控制顯示
+				el.addEventListener('click', function (e) {
+					// 停止 tooltip 事件
+					e.stopPropagation();
+					
+					// 複製文字到剪貼簿
+					navigator.clipboard.writeText(msg).then(() => {
+						console.log('copy ok:', msg);
+					}).catch(err => {
+						console.error('copy err:', err);
+					});
+				});
+				
+				// 點畫面其他地方時關掉 tooltip
+				document.addEventListener('click', function () {
+					tooltip.hide();
+				});
+			} catch (err) {
+				console.error('register tooltip event error：', err);
+			}
+		}
+		
+		function getLastUrlSegment(url) {
+			
+			const urlPattern = /^(https?:\/\/)?([\w-]+\.)+[\w-]+(\/[\w\-./?%&=]*)?$/i;
+
+			if (!urlPattern.test(url)) {
+				console.error("invalid URL");
+				return null;
+			}
+
+			// 過濾空字元
+			const parts = url.split("/").filter(part => part !== "");
+			
+			return parts[parts.length - 1];
+		}
+		
+		function getLastTwoUrlSegmentsSafe(urlString) {
+			
+			try {
+				const url = new URL(urlString);
+				// 過濾空字元
+				const parts = url.pathname.split("/").filter(part => part !== "");
+				const len = parts.length;
+
+				if (len >= 2) {
+					return [parts[len - 2], parts[len - 1]];
+				} else if (len === 1) {
+					return [parts[0]];
+				} else {
+					return [];
+				}
+			} catch (e) {
+				console.error("不是合法的 URL");
+				return null;
+			}
+		}
+		
+		function togglePlaceholder(divId, placeholderId) {
+			
+			const div = document.getElementById(divId);
+			const placeholder = document.getElementById(placeholderId);
+			
+			placeholder.style.display = div.textContent.trim() ? 'none' : 'block';
+		}
+		
+	</script>
+  
+</head>
+<body>
+	<div class="container-fluid vh-100">
+		<!-- 使用 g-0 有效抑制 .row 預設負邊距所造成的上下、左右捲軸 -->
+		<div class="row g-0 vh-100">
+			
+			<!-- 左欄，上下分為 2 部份 -->
+			<div class="col-4 d-flex pe-1 pb-1 flex-column vh-100">
+				<!-- Encoded JWT -->
+				<div class="row h-5">
+					<div class="col d-flex justify-content-between align-items-center">
+						<div class="title p-2">JWT</div>
+						<div class="d-flex justify-content-between align-items-center">
+							<div id="div_msg_jwt" class="msg p-2"></div>
+							<button id="btn_copy_jwt" class="btn btn-primary button-text px-2 py-0 mb-0 me-2">複製</button>
+							<button id="btn_clear_jwt" class="btn btn-danger button-text px-2 py-0 mb-0 me-2">清空</button>
+						</div>
+					</div>
+				</div>
+				<div class="row h-70">
+					<div class="col">
+						<!-- 在 contenteditable div 內模擬 input 專有的 placeholder -->
+						<div class="editable-container d-flex">
+							<div id="div_jwt" contenteditable="true" class="input-jwt form-control mb-0 me-2 vh-70"></div>
+							<div id="placeholder_jwt" class="editable-placeholder ps-3 pt-2">請輸入 JWT 或 SD-JWT 資料 ...</div>
+						</div>
+					</div>
+				</div>
+				
+				<!-- Public Key -->
+				<div class="row h-5">
+					<div class="col d-flex justify-content-between align-items-center">
+						<div class="title p-2">Public Key (JWK)</div>
+						<div class="d-flex justify-content-between align-items-center">
+							<div id="div_msg_public_key" class="msg p-2"></div>
+							<button id="btn_copy_public_key" class="btn btn-primary button-text px-2 py-0 mb-0 me-2">複製</button>
+							<button id="btn_clear_public_key" class="btn btn-danger button-text px-2 py-0 mb-0 me-2">清空</button>
+						</div>
+					</div>
+				</div>
+				<div class="row h-20">
+					<div class="col">
+						<!-- 在 contenteditable div 內模擬 input 專有的 placeholder -->
+						<div class="editable-container d-flex">
+							<div id="div_public_key" contenteditable="true" class="input-public-key form-control me-2 vh-20"></div>
+							<div id="placeholder_public_key" class="editable-placeholder ps-3 pt-2">請輸入 JWK 格式公鑰 ...</div>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- 右欄，上下分為 3 部份 -->
+			<div class="col-8 d-flex pe-1 pb-1 flex-column vh-100">
+				
+				<!-- Header -->
+				<div class="row h-5">
+					<div class="col d-flex justify-content-between align-items-center">
+						<div class="title p-2">Decoded Header</div>
+					</div>
+				</div>
+				<div class="row h-20">
+					<div class="col d-flex">
+						<div id="div_header" class="output-header form-control p-2 vh-20"></div>
+					</div>
+				</div>
+				
+				<!-- Payload -->
+				<div class="row h-5">
+					<div class="col d-flex justify-content-between align-items-center">
+						<div class="title p-2">Decoded Payload</div>
+						<div class="d-flex justify-content-between align-items-center">
+							<div id="div_msg_payload" class="msg p-2"></div>
+							<button id="btn_payload_detail" class="btn btn-primary button-text button-notify px-2 py-0 mb-0" data-bs-toggle="modal" data-bs-target="#modal_payload_detail">詳細資訊</button>
+						</div>
+					</div>
+				</div>
+				<div class="row h-45">
+					<div class="col d-flex">
+						<div id="div_payload" class="output-payload form-control p-2 vh-45"></div>
+					</div>
+				</div>
+				
+				<!-- Disclosure & Encoded List -->
+				<div class="row h-25">
+					<!-- 再分為左右 2 欄 -->
+					<div class="col-6 d-flex flex-column pe-1">
+						<div class="title p-2 h-5">Decoded Disclosures</div>
+						<div id="div_disclosures" class="output-disclosures form-control p-2 vh-20"></div>
+					</div>
+					<div class="col-6 d-flex flex-column ps-2">
+						<div class="d-flex justify-content-between align-items-center">
+							<div class="title p-2 h-5">Encoded List</div>
+							<div class="d-flex justify-content-between align-items-center">
+								<div id="div_msg_encodedList" class="msg p-2"></div>
+								<button id="btn_encodedList_input" class="btn btn-primary button-text button-hidden px-2 py-0 mb-0" data-bs-toggle="modal" data-bs-target="#modal_encodedList_input">手動輸入</button>
+							</div>
+						</div>
+						<div id="div_encodedList" class="output-encodedList form-control p-2 vh-20"></div>
+					</div>
+				</div>
+
+			</div>
+		</div>
+	</div>
+	
+	<!-- modal for payload detail -->
+	<div class="modal fade" id="modal_payload_detail" tabindex="-1" aria-labelledby="label_modal_payload_detail" aria-hidden="true">
+		<!-- 可以調整為 modal-xl 讓表格更寬 -->
+		<div class="modal-dialog modal-customized">
+			<div class="modal-content">
+				<!-- modal header -->
+				<div class="modal-header">
+					<h5 class="modal-title" id="label_modal_payload_detail">詳細資料</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
+				</div>
+				<!-- modal body -->
+				<div class="modal-body">
+					<table class="table table-bordered">
+						<thead class="table-light">
+							<tr>
+							<th>欄位名稱</th>
+							<th>欄位值</th>
+							<th>備註</th>
+							</tr>
+						</thead>
+						<tbody id="table_payload_detail"></tbody>
+					</table>
+				</div>
+				<!-- modal footer -->
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+				</div>
+			</div>
+		</div>
+	</div>
+	
+	<!-- modal_encodedList_input -->
+	<div class="modal fade" id="modal_encodedList_input" tabindex="-1" aria-labelledby="label_modal_encodedList_input" aria-hidden="true">
+		<!-- 可以調整為 modal-xl 讓表格更寬 -->
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content">
+				<!-- modal header -->
+				<div class="modal-header">
+					<h5 class="modal-title" id="label_modal_encodedList_input">手動輸入</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
+				</div>
+				<!-- modal body -->
+				<div class="modal-body">
+					<div class="p-2 mb-2">
+						請輸入狀態清冊上的 <span class="json-key">encodedList</span> 欄位值：
+					</div>
+					<div id="div_encodedList_input" contenteditable="true" class="input-encodedList-input form-control"></div>
+				</div>
+				<!-- modal footer -->
+				<div class="modal-footer">
+					<button id="btn_confirm_encodedList_input" type="button" class="btn btn-primary" data-bs-dismiss="modal">確定</button>
+					<button id="btn_clear_encodedList_input" type="button" class="btn btn-danger">清空</button>
+					<!--
+					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+					-->
+				</div>
+			</div>
+		</div>
+	</div>
+	
+  
+</body>
+</html>
