@@ -12,7 +12,7 @@
 
 <br/>
 
-## 📝 JWT 輸入區
+## ⌨️ JWT 輸入區
 
 - 可以接受 **JWT** 或 **SD-JWT** 等格式之輸入資料，並且能夠自動針對 JWT 字串進行**分段色彩標示** 🎨。
 - 「**複製** 🔵」按鈕：複製輸入格內的 **JWT** 字串至剪貼簿。
@@ -20,7 +20,7 @@
 
 <br/>
 
-## 📝 Public Key 輸入區
+## ⌨️ Public Key 輸入區
 - 可以接受 **JWK** 格式之公鑰資料，並且能夠自動針對 JSON 字串進行**語法高亮顯示** 🎨。
 - 「**複製** 🔵」按鈕：複製輸入格內的 **JWK** 字串至剪貼簿。
 - 「**清空** 🔴」按鈕：清空輸入格內的字串資料。
@@ -37,12 +37,12 @@
 
 <br/>
 
-## 📜 Decoded Header 顯示區
+## 🖥️ Decoded Header 顯示區
 - 顯示 JWT Header 基本資訊，並且能夠自動針對 JSON 字串進行**語法高亮顯示** 🎨。
 
 <br/>
 
-## 📜 Decoded Payload 顯示區
+## 🖥️ Decoded Payload 顯示區
 - 顯示 JWT Payload 基本資訊，並且能夠自動針對 JSON 字串進行**語法高亮顯示** 🎨。
 - 「**詳細資料** 🔵」按鈕：於浮空視窗內，以**表格**形式呈現 JWT Payload 各欄位資訊以及相關說明。
 
@@ -55,7 +55,7 @@
 
 <br/>
 
-## 📜 Decoded Disclosures 顯示區
+## 🖥️ Decoded Disclosures 顯示區
 - 顯示 SD-JWT Disclosures 之**明碼**資訊，並且能夠自動針對 Disclosure 明碼格式進行**語法高亮顯示** 🎨。
 
 > [!NOTE]
@@ -63,7 +63,7 @@
 
 <br/>
 
-## 📜 Encoded List 顯示區
+## 🖥️ Encoded List 顯示區
 - 針對 VC type 欄位為 **StatusList2021Credential** 者，將自動解析 **encodedList** 欄位資料，並且以 **hex dump** 形式呈現。
 - 「**手動輸入** 🔵」按鈕：供使用者手動輸入 **encodedList** 資料，以進行狀態清冊驗證。
 
@@ -73,3 +73,10 @@
 > [!IMPORTANT]
 > - 手動輸入的 **encodedList** 會被**自動解析**，並且針對 VC **statusListIndex** 欄位所對應到之 byte 位置，也會進行**語法高亮顯示** 🎨。
 > - 後續將自動進行「**狀態清冊驗證** ✅❓」，驗證結果將會顯示在「**手動輸入**」按鈕旁，例如：「**狀態驗證成功** ✔️」。
+
+<br/>
+
+## 📜 參考文獻
+- [Verifiable Credentials Data Model v1.1](https://www.w3.org/TR/vc-data-model/)
+- [Verifiable Credentials Status List v2021](https://www.w3.org/TR/2023/WD-vc-status-list-20230427/)
+- [SD-JWT-based Verifiable Credentials (SD-JWT VC)](https://www.ietf.org/archive/id/draft-ietf-oauth-sd-jwt-vc-00.html)
