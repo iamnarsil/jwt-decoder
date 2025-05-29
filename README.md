@@ -71,11 +71,32 @@
 - 「**手動輸入** 🔵」按鈕：供使用者手動輸入 **encodedList** 資料，以進行狀態清冊驗證。
 
 > [!NOTE]
-> - 當 VC type **等於 StatusList2021Credential**時，「**手動輸入** 🔵」按鈕將會隱藏起來 🚫。
+> - 當 VC type **等於 StatusList2021Credential** 時，「**手動輸入** 🔵」按鈕將會隱藏起來 🚫。
 
 > [!IMPORTANT]
 > - 手動輸入的 **encodedList** 會被**自動解析**，並且針對 VC **statusListIndex** 欄位所對應到之 byte 位置，也會進行**語法高亮顯示** 🎨。
 > - 後續將自動進行「**狀態清冊驗證** ✅❓」，驗證結果將會顯示在「**手動輸入**」按鈕旁，例如：「**狀態驗證成功** ✔️」。
+
+<br/>
+
+## ㊙️ 進階操作 (組合技)
+```mermaid
+flowchart TD
+    A(輸入 VC JWT)
+    A -->|自動解析| B1(Header 顯示 jku, kid)
+    A -->|自動解析| B2(Payload 顯示 statusListCredential)
+    A -->|自動解析| B3(Public Key 顯示 DID 對應之 JWK 公鑰)
+    A -->|自動解析| B4(Encoded List 出現「手動輸入」按鈕)
+    B1 --> C1(連至 jku URL 取得公開金鑰)
+    B2 --> C2(連至 statusListCredential URL 取得狀態清冊)
+    B3 --> |自動驗證簽章|C3(顯示 VC JWT 簽章驗證結果)
+    C1 --> |手動驗證狀態清冊簽章| D(開新頁面輸入 StatusList JWT)
+    C2 --> D
+    D --> |自動解析| E(Payload 顯示 encodedList)
+    E --> F(複製 encodedList)
+    F --> |手動貼入 encodedList| B4
+    B4 --> |自動驗證| G(顯示 VC JWT 狀態驗證結果)
+```
 
 <br/>
 
