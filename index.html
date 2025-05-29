@@ -794,7 +794,7 @@
 				
 				const nowMillis = Date.now();
 				const timeStr = '[' + getTimeZone() + '] ' + formatEpochTime(value) + ' ';
-				if (key == "nbf") {
+				if (key == "nbf" || key == "iat") {
 					// 發行時間
 					if (nowMillis >= value * 1000) {
 						remarkCell.classList.add("text-primary");
