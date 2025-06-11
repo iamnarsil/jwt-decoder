@@ -56,7 +56,9 @@
 		.output-disclosures {
 			overflow-y: auto;
 			border: 1px solid #ccc;
-			white-space: pre-wrap;
+			/* white-space: pre-wrap; */
+			overflow-x: auto;
+			white-space: nowrap;
 			font-family: monospace;
 			/* font-size: 16px; */
 		}
@@ -175,12 +177,14 @@
 		.sd-jwt-disclosure 	{ color: purple; }
 		
 		/* Other Highlight */
-		.line-number		{ color: darkgoldenrod; }
-		.target-byte		{ color: deepskyblue; font-weight: bold; }
-		.name-value			{ color: deepskyblue; font-weight: bold;}
-		.verify-success		{ color: blue; font-weight: bold;}
-		.verify-fail		{ color: red; font-weight: bold;}
-		.verify-unknown		{ color: purple; font-weight: bold;}
+		.line-number				{ color: darkgoldenrod; }
+		.target-byte				{ color: deepskyblue; font-weight: bold; }
+		.disclosure-name			{ color: deepskyblue; font-weight: bold;}
+		.disclosure-value			{ color: darkgoldenrod; font-weight: bold;}
+		.disclosure-value-object	{ color: purple; font-weight: bold;}
+		.verify-success				{ color: blue; font-weight: bold;}
+		.verify-fail				{ color: red; font-weight: bold;}
+		.verify-unknown				{ color: purple; font-weight: bold;}
 		
 	</style>
   
@@ -191,7 +195,8 @@
 		
 		$(document).ready(function() {
 		
-			var tokens;
+			// var tokens;
+			var mainJWT;
 			var statusListIndex;
 		
 			// 觀察視窗寬高
@@ -207,41 +212,128 @@
 			
 			// 輸入 JWT
 			$('#div_jwt').on('input', function() {
-				
+			
+				clearFields();
 				togglePlaceholder('div_jwt', 'placeholder_jwt');
 			
-				const input = $(this).text().trim();
+				const input = $(this).text().replace(/\s+/g, '');
 				
-				if (isJWT(input)) {
-					console.log("isJWT = true");
-					// 分隔符號為「點(.)」與「波浪號(~)」 
-					tokens = input.split(/[\s.~]+/);
-					console.log("tokens.length = " + tokens.length);
-					if (tokens.length >= 3) {
-						var coloredJWT = '<span class="jwt-header">' + tokens[0] + '</span>.' +
-										'<span class="jwt-payload">' + tokens[1] + '</span>.' +
-										'<span class="jwt-signature">' + tokens[2] + '</span>';
-						
-						// disclosures
-						if (tokens.length > 3) {
-							
-							// colored disclosures in input SD-JWT
-							const disclosures = '~' + tokens.slice(3, tokens.length).join("~");
-							coloredJWT = coloredJWT + '<span class="sd-jwt-disclosure">' + disclosures + '</span>';
-							
-							// decoded data from disclosures
-							var decodedDisclosures = '';
-							tokens.slice(3, tokens.length).forEach(db64 => {
-								var coloredDisclosure = highlightDisclosure(base64UrlDecode(db64));
-								decodedDisclosures = decodedDisclosures + coloredDisclosure + '<br/>';
-							});
-							$('#div_disclosures').html(decodedDisclosures);
+				// 儲存當前游標位置
+				const caretPos = saveCaretPosition(this);
+				
+				if (isAdvancedJWT(input)) {
+					
+					console.log("isAdvancedJWT = true");
+					// $('#div_msg_jwt').html('');
+					
+					// // 分隔符號為「點(.)」與「波浪號(~)」 
+					// tokens = input.split(/[\s.~]+/);
+					// console.log("tokens.length = " + tokens.length);
+					// if (tokens.length >= 3) {
+					// 	var coloredJWT = '<span class="jwt-header">' + tokens[0] + '</span>.' +
+					// 					'<span class="jwt-payload">' + tokens[1] + '</span>.' +
+					// 					'<span class="jwt-signature">' + tokens[2] + '</span>';
+					// 	
+					// 	// disclosures
+					// 	if (tokens.length > 3) {
+					// 		
+					// 		// colored disclosures in input SD-JWT
+					// 		const disclosures = '~' + tokens.slice(3, tokens.length).join("~");
+					// 		coloredJWT = coloredJWT + '<span class="sd-jwt-disclosure">' + disclosures + '</span>';
+					// 		
+					// 		// decoded data from disclosures
+					// 		var decodedDisclosures = '';
+					// 		tokens.slice(3, tokens.length).forEach(db64 => {
+					// 			var coloredDisclosure = highlightDisclosure(base64UrlDecode(db64));
+					// 			decodedDisclosures = decodedDisclosures + coloredDisclosure + '<br/>';
+					// 		});
+					// 		$('#div_disclosures').html(decodedDisclosures);
+					// 	}
+					// 						
+					// 	$('#div_jwt').html(coloredJWT);
+					// 	
+					// 	const header = JSON.parse(base64UrlDecode(tokens[0]));
+					// 	const payload = JSON.parse(base64UrlDecode(tokens[1]));
+					// 	// console.log(header);
+					// 	// console.log(payload);
+					// 	
+					// 	const prettyHeader = highlightJSON(header);
+					// 	const prettyPayload = highlightJSON(payload);
+					// 	
+					// 	$('#div_header').html(prettyHeader);
+					// 	$('#div_payload').html(prettyPayload);
+					// 	
+					// 	const credentialType = payload?.vc?.type?.[1];
+					// 	// console.log("credentialType = " + credentialType);
+					// 	
+					// 	
+					// 	// encoded list
+					// 	const encodedList = payload?.vc?.credentialSubject?.encodedList ?? null;
+					// 	if (credentialType == 'StatusList2021Credential' && encodedList) {
+					// 		const hexDump = decodeEncodedList(encodedList);
+					// 		$('#div_encodedList').html(hexDump);
+					// 	}
+					// 	
+					// 	// payload detail
+					// 	renderJsonTable(payload);
+					// 	
+					// 	
+					// 	// jwk
+					// 	const jwk = header?.jwk ?? null;
+					// 	// iss
+					// 	const iss = payload?.iss ?? null;
+					// 	// [第一優先] 使用 header 內的 jwk 欄位來驗證簽章。
+					// 	// [第二順位] 當 payload 內的 iss 欄位支援 DID 格式時，則透過解析 iss 來獲得公鑰進行驗簽。
+					// 	if (jwk) {
+					// 		const jwkStr = JSON.stringify(jwk, null, 2);
+					// 		$('#div_public_key').html(jwkStr).trigger('input');
+					// 	} else {
+					// 		const parseResult = parseDidKey(iss);
+					// 		// console.log("parseResult.success = " + parseResult.success);
+					// 		// console.log("parseResult.content = " + parseResult.content);
+					// 		if (parseResult.success && parseResult.content) {
+					// 			// 狀態清冊簽署金鑰不會以 DID 形式呈現，因此不適用。
+					// 			if (credentialType != 'StatusList2021Credential') {
+					// 				$('#div_public_key').html(parseResult.content).trigger('input');
+					// 			}
+					// 		}
+					// 	}
+					// 	
+					// 	// statusListIndex
+					// 	statusListIndex = payload?.vc?.credentialStatus?.statusListIndex ?? null;
+					// 	if (statusListIndex) {
+					// 		$('#btn_encodedList_input').show();
+					// 	}
+					// }
+					
+					// 先用分隔符號「波浪號(~)」切出 disclosure，然後在判斷前段是否為 JWT 本體以及後段是否為 KB-JWT
+					const inputParts = input.split(/[\s~]+/);
+					console.log("inputParts.length = " + inputParts.length);
+					
+					mainJWT = isJWT(inputParts[0]) ? inputParts[0].split(/[\s.]+/) : null;
+					var disclosures;
+					var kbJWT;
+					
+					if (inputParts.length == 2) {
+						disclosures = Array.from(inputParts.slice(1, inputParts.length));
+					} else if (inputParts.length >= 3) {
+						if (isJWT(inputParts[inputParts.length - 1])) {
+							kbJWT = inputParts[inputParts.length - 1].split(/[\s.]+/);
+							disclosures = Array.from(inputParts.slice(1, inputParts.length - 1));
+						} else {
+							disclosures = Array.from(inputParts.slice(1, inputParts.length));
 						}
-											
-						$('#div_jwt').html(coloredJWT);
-						
-						const header = JSON.parse(base64UrlDecode(tokens[0]));
-						const payload = JSON.parse(base64UrlDecode(tokens[1]));
+					}
+					
+					// main JWT
+					var coloredMainJWT = '';
+					if (mainJWT) {
+						coloredMainJWT = '<span class="jwt-header">' + mainJWT[0] + '</span>.' +
+										'<span class="jwt-payload">' + mainJWT[1] + '</span>.' +
+										'<span class="jwt-signature">' + mainJWT[2] + '</span>';
+					
+						const header = JSON.parse(base64UrlDecode(mainJWT[0]));
+						const payload = JSON.parse(base64UrlDecode(mainJWT[1]));
 						// console.log(header);
 						// console.log(payload);
 						
@@ -250,7 +342,6 @@
 						
 						$('#div_header').html(prettyHeader);
 						$('#div_payload').html(prettyPayload);
-						
 						
 						const credentialType = payload?.vc?.type?.[1];
 						// console.log("credentialType = " + credentialType);
@@ -266,15 +357,25 @@
 						// payload detail
 						renderJsonTable(payload);
 						
+						
+						// jwk
+						const jwk = header?.jwk ?? null;
 						// iss
 						const iss = payload?.iss ?? null;
-						const parseResult = parseDidKey(iss);
-						// console.log("parseResult.success = " + parseResult.success);
-						// console.log("parseResult.content = " + parseResult.content);
-						if (parseResult.success && parseResult.content) {
-							// 狀態清冊簽署金鑰不會以 DID 形式呈現，因此不適用。
-							if (credentialType != 'StatusList2021Credential') {
-								$('#div_public_key').html(parseResult.content).trigger('input');
+						// [第一優先] 使用 header 內的 jwk 欄位來驗證簽章。
+						// [第二順位] 當 payload 內的 iss 欄位支援 DID 格式時，則透過解析 iss 來獲得公鑰進行驗簽。
+						if (jwk) {
+							const jwkStr = JSON.stringify(jwk, null, 2);
+							$('#div_public_key').html(jwkStr).trigger('input');
+						} else {
+							const parseResult = parseDidKey(iss);
+							// console.log("parseResult.success = " + parseResult.success);
+							// console.log("parseResult.content = " + parseResult.content);
+							if (parseResult.success && parseResult.content) {
+								// 狀態清冊簽署金鑰不會以 DID 形式呈現，因此不適用。
+								if (credentialType != 'StatusList2021Credential') {
+									$('#div_public_key').html(parseResult.content).trigger('input');
+								}
 							}
 						}
 						
@@ -285,18 +386,53 @@
 						}
 					}
 					
+					// disclosures
+					var coloredDisclosures = '';
+					if (disclosures) {
+						var disclosuresText = '~' + disclosures.slice(0, disclosures.length).join("~");
+						if (!disclosuresText.endsWith("~")) {
+							disclosuresText = disclosuresText + '~';
+						}
+						console.log('disclosuresText = ' + disclosuresText);
+						
+						coloredDisclosures = '<span class="sd-jwt-disclosure">' + disclosuresText + '</span>';
+						
+						// decoded data from disclosures
+						var decodedDisclosures = '';
+						disclosures.slice(0, disclosures.length).forEach(db64 => {
+							var coloredDisclosure = highlightDisclosure(base64UrlDecode(db64));
+							decodedDisclosures = decodedDisclosures + coloredDisclosure + '<br/>';
+						});
+						$('#div_disclosures').html(decodedDisclosures);
+					}
+					
+					// KB-JWT
+					var coloredKbJWT = '';;
+					if (kbJWT) {
+						coloredKbJWT = '<span class="jwt-header">' + kbJWT[0] + '</span>.' +
+										'<span class="jwt-payload">' + kbJWT[1] + '</span>.' +
+										'<span class="jwt-signature">' + kbJWT[2] + '</span>';
+					}
+					
+					var coloredJWT = coloredMainJWT + coloredDisclosures + coloredKbJWT;
+					$('#div_jwt').html(coloredJWT);
+					
+					
 				} else {
-					// console.log("isJWT = false");
+					// console.log("isAdvancedJWT = false");
 					if (input != null && input != '') {
 						$('#div_msg_jwt').html('<span class="verify-fail">JWT 格式錯誤</span>');
 					} else {
-						$('#div_header').html('');
-						$('#div_payload').html('');
-						$('#div_disclosures').html('');
-						$('#div_encodedList').html('');
 						$('#div_msg_jwt').html('');
 					}
+					$('#div_header').html('');
+					$('#div_payload').html('');
+					$('#div_disclosures').html('');
+					$('#div_encodedList').html('');
 				}
+				
+				// 還原游標位置
+				restoreCaretPosition(this, caretPos);
 			});
 			
 			
@@ -307,11 +443,6 @@
 				
 				const input = $(this).text().trim();
 				
-				// public key
-				// var prettyPublicKey = '';
-				// const pureJwt = tokens.slice(0, 3).join(".");
-				// console.log("pureJwt = " + pureJwt);
-				
 				if (isValidJWK(input)) {
 					console.error("valid public key");
 					const jwk = JSON.parse(input);
@@ -319,7 +450,8 @@
 					$('#div_public_key').html(prettyPublicKey);
 					
 					// verify JWT
-					const pureJwt = tokens.slice(0, 3).join(".");
+					// const pureJwt = tokens.slice(0, 3).join(".");
+					const pureJwt = mainJWT.slice(0, 3).join(".");
 					// console.log("pureJwt = " + pureJwt);
 					verifyJWT(pureJwt, jwk).then(result => {
 						if (result) {
@@ -441,10 +573,29 @@
 				$('#div_msg_encodedList').html('');
 			});
 			
+			function clearFields() {
+				$('#div_public_key').html('');
+				$('#div_msg_jwt').html('');
+				$('#div_msg_public_key').html('');
+				$('#div_header').html('');
+				$('#div_payload').html('');
+				$('#div_disclosures').html('');
+				$('#div_encodedList').html('');
+				$('#div_msg_encodedList').html('');
+				$('#table_payload_detail').html('');
+				$('#btn_payload_detail').html('詳細資訊');
+			}
+			
 		});
 		
 		function isJWT(token) {
-			return /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+(?:~[A-Za-z0-9-_]+)*~?$/.test(token);
+			return /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+$/.test(token);
+		}
+		
+		function isAdvancedJWT(token) {
+			// 可支援 3 種格式，包括：JWT / SD-JWT / SD-JWT+KB
+			// return /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+(?:~[A-Za-z0-9-_]+)*(?:~[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+)?$/.test(token);
+			return /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+(?:~[A-Za-z0-9-_]+)*(?:~)*(?:[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+)?$/.test(token);
 		}
 		
 		function isValidJWK(jwkString) {
@@ -518,21 +669,34 @@
 				// 將 JSON 字串轉為陣列
 				const arr = JSON.parse(jsonStr);
 
-				// 確認陣列長度是否足夠
-				if (arr.length < 3) {
+				// 確認陣列長度是否足夠，至少支援 2 種格式：
+				// [salt, name, value]
+				// [salt, name]
+				if (arr.length < 2) {
 					return jsonStr;
 				}
 				
 				// 產生 highlight 後的格式字串（第 2 和第 3 個元素）
 				const highlighted = arr.map((item, index) => {
-					if (index === 1 || index === 2) {
-						return '<span class="name-value">' + `${item}`+ '</span>';
+					
+					if (index === 1) {
+						
+						return '<span class="disclosure-name">' + `"${item}"` + '</span>';
+						
+					} else if (index === 2) {
+						
+						if (typeof item === 'object' && item !== null) {
+							return '<span class="disclosure-value-object">' + JSON.stringify(item) + '</span>';
+						} else {
+							return '<span class="disclosure-value">' + `"${item}"` + '</span>';
+						}
 					}
-					return item;
+					
+					return `"${item}"`;
 				});
 
 				// 將結果轉為字串格式（保留原始 JSON 外觀）
-				return `[${highlighted.map(i => `"${i}"`).join(",")}]`;
+				return `[${highlighted.map(i => `${i}`).join(",")}]`;
 				
 			} catch (e) {
 				console.error("invalid JSON input:", e);
@@ -780,8 +944,8 @@
 				const valueCell = document.createElement("td");
 				// 設定可以捲動
 				valueCell.className = "col-value";
-				if (key == "cnf" || key == "vc" || key == "vp") {
-					// cnf, vc
+				// if (key == "cnf" || key == "vc" || key == "vp") {
+				if (typeof value === 'object' && value !== null) {
 					valueCell.textContent = JSON.stringify(value);
 				} else {
 					valueCell.textContent = value;
@@ -1062,6 +1226,53 @@
 			const placeholder = document.getElementById(placeholderId);
 			
 			placeholder.style.display = div.textContent.trim() ? 'none' : 'block';
+		}
+		
+		function saveCaretPosition(container) {
+			// 儲存當前游標位置
+			const selection = window.getSelection();
+			if (!selection.rangeCount) {
+				return 0;
+			}
+
+			const range = selection.getRangeAt(0);
+			const preRange = range.cloneRange();
+			preRange.selectNodeContents(container);
+			preRange.setEnd(range.startContainer, range.startOffset);
+			return preRange.toString().length;
+		}
+
+		function restoreCaretPosition(container, pos) {
+			// 還原游標位置
+			let charIndex = 0;
+			const nodeStack = [container];
+			let node, foundNode = null, offset = 0;
+
+			while (nodeStack.length && !foundNode) {
+				node = nodeStack.pop();
+				if (node.nodeType === 3) {
+					const nextIndex = charIndex + node.length;
+					if (pos >= charIndex && pos <= nextIndex) {
+						foundNode = node;
+						offset = pos - charIndex;
+					}
+					charIndex = nextIndex;
+				} else {
+					let i = node.childNodes.length;
+					while (i--) {
+						nodeStack.push(node.childNodes[i]);
+					}
+				}
+			}
+
+			if (foundNode) {
+				const sel = window.getSelection();
+				const range = document.createRange();
+				range.setStart(foundNode, offset);
+				range.collapse(true);
+				sel.removeAllRanges();
+				sel.addRange(range);
+			}
 		}
 		
 	</script>
